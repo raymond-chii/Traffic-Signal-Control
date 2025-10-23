@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edges xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/edges_file.xsd">
+    
+    <!-- NORTH approach: far segment -->
+    <edge id="north_far_to_near" from="north_far" to="north_near" numLanes="3" speed="13.89">
+        <lane index="0" allow="pedestrian" width="2.0"/>
+        <lane index="1" allow="bicycle" width="1.5"/>
+        <lane index="2" allow="passenger"/>
+    </edge>
+    
+    <!-- NORTH approach: near segment -->
+    <edge id="north_near_to_center" from="north_near" to="center" numLanes="4" speed="13.89">
+        <lane index="0" allow="pedestrian" width="2.0"/>
+        <lane index="1" allow="bicycle" width="1.5"/>
+        <lane index="2" allow="passenger"/>
+        <lane index="3" allow="passenger"/>
+    </edge>
+    
+    <!-- SOUTH approach: far segment -->
+    <edge id="south_far_to_near" from="south_far" to="south_near" numLanes="3" speed="13.89">
+        <lane index="0" allow="pedestrian" width="2.0"/>
+        <lane index="1" allow="bicycle" width="1.5"/>
+        <lane index="2" allow="passenger"/>
+    </edge>
+    
+    <!-- SOUTH approach: near segment -->
+    <edge id="south_near_to_center" from="south_near" to="center" numLanes="4" speed="13.89">
+        <lane index="0" allow="pedestrian" width="2.0"/>
+        <lane index="1" allow="bicycle" width="1.5"/>
+        <lane index="2" allow="passenger"/>
+        <lane index="3" allow="passenger"/>
+    </edge>
+    
+    <!-- EAST approach: far segment -->
+    <edge id="east_far_to_near" from="east_far" to="east_near" numLanes="3" speed="13.89">
+        <lane index="0" allow="pedestrian" width="2.0"/>
+        <lane index="1" allow="bicycle" width="1.5"/>
+        <lane index="2" allow="passenger"/>
+    </edge>
+    
+    <!-- EAST approach: near segment -->
+    <edge id="east_near_to_center" from="east_near" to="center" numLanes="4" speed="13.89">
+        <lane index="0" allow="pedestrian" width="2.0"/>
+        <lane index="1" allow="bicycle" width="1.5"/>
+        <lane index="2" allow="passenger"/>
+        <lane index="3" allow="passenger"/>
+    </edge>
+    
+    <!-- WEST approach: far segment -->
+    <edge id="west_far_to_near" from="west_far" to="west_near" numLanes="3" speed="13.89">
+        <lane index="0" allow="pedestrian" width="2.0"/>
+        <lane index="1" allow="bicycle" width="1.5"/>
+        <lane index="2" allow="passenger"/>
+    </edge>
+    
+    <!-- WEST approach: near segment -->
+    <edge id="west_near_to_center" from="west_near" to="center" numLanes="4" speed="13.89">
+        <lane index="0" allow="pedestrian" width="2.0"/>
+        <lane index="1" allow="bicycle" width="1.5"/>
+        <lane index="2" allow="passenger"/>
+        <lane index="3" allow="passenger"/>
+    </edge>
+    
+    <!-- EXIT roads from intersection -->
+    <edge id="center_to_north" from="center" to="north_far" numLanes="3" speed="13.89">
+        <lane index="0" allow="pedestrian" width="2.0"/>
+        <lane index="1" allow="bicycle" width="1.5"/>
+        <lane index="2" allow="passenger"/>
+    </edge>
+    <edge id="center_to_south" from="center" to="south_far" numLanes="3" speed="13.89">
+        <lane index="0" allow="pedestrian" width="2.0"/>
+        <lane index="1" allow="bicycle" width="1.5"/>
+        <lane index="2" allow="passenger"/>
+    </edge>
+    <edge id="center_to_east" from="center" to="east_far" numLanes="3" speed="13.89">
+        <lane index="0" allow="pedestrian" width="2.0"/>
+        <lane index="1" allow="bicycle" width="1.5"/>
+        <lane index="2" allow="passenger"/>
+    </edge>
+    <edge id="center_to_west" from="center" to="west_far" numLanes="3" speed="13.89">
+        <lane index="0" allow="pedestrian" width="2.0"/>
+        <lane index="1" allow="bicycle" width="1.5"/>
+        <lane index="2" allow="passenger"/>
+    </edge>
+    
+</edges>

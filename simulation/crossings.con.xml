@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<crossings>
+    <crossing node="center" edges="north_near_to_center center_to_north" priority="true"/>
+    <crossing node="center" edges="south_near_to_center center_to_south" priority="true"/>
+    <crossing node="center" edges="east_near_to_center center_to_east" priority="true"/>
+    <crossing node="center" edges="west_near_to_center center_to_west" priority="true"/>
+</crossings>

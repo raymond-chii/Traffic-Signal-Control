@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<nodes xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/nodes_file.xsd">
+    <node id="center" x="0.0" y="0.0" type="traffic_light"/>
+    
+    <!-- Far entry points -->
+    <node id="north_far" x="0.0" y="200.0" type="priority"/>
+    <node id="south_far" x="0.0" y="-200.0" type="priority"/>
+    <node id="east_far" x="200.0" y="0.0" type="priority"/>
+    <node id="west_far" x="-200.0" y="0.0" type="priority"/>
+    
+    <!-- Near intersection - where lanes expand -->
+    <node id="north_near" x="0.0" y="50.0" type="priority"/>
+    <node id="south_near" x="0.0" y="-50.0" type="priority"/>
+    <node id="east_near" x="50.0" y="0.0" type="priority"/>
+    <node id="west_near" x="-50.0" y="0.0" type="priority"/>
+</nodes>
