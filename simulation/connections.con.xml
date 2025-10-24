@@ -3,26 +3,26 @@
     
     <!-- NORTH approach: lane 2=LEFT ONLY, lane 3=STRAIGHT + RIGHT -->
     <connection from="north_near_to_center" to="center_to_south" fromLane="1" toLane="1"/>
-    <connection from="north_near_to_center" to="center_to_west" fromLane="2" toLane="1"/>
-    <connection from="north_near_to_center" to="center_to_south" fromLane="3" toLane="1"/>
-    <connection from="north_near_to_center" to="center_to_east" fromLane="3" toLane="1"/>
+    <connection from="north_near_to_center" to="center_to_west" fromLane="2" toLane="2"/>
+    <connection from="north_near_to_center" to="center_to_south" fromLane="2" toLane="2"/>
+    <connection from="north_near_to_center" to="center_to_east" fromLane="3" toLane="2"/>
     
     <!-- SOUTH approach: lane 2=LEFT ONLY, lane 3=STRAIGHT + RIGHT -->
     <connection from="south_near_to_center" to="center_to_north" fromLane="1" toLane="1"/>
-    <connection from="south_near_to_center" to="center_to_east" fromLane="2" toLane="1"/>
-    <connection from="south_near_to_center" to="center_to_north" fromLane="3" toLane="1"/>
-    <connection from="south_near_to_center" to="center_to_west" fromLane="3" toLane="1"/>
+    <connection from="south_near_to_center" to="center_to_east" fromLane="2" toLane="2"/>
+    <connection from="south_near_to_center" to="center_to_north" fromLane="2" toLane="2"/>
+    <connection from="south_near_to_center" to="center_to_west" fromLane="3" toLane="2"/>
     
     <!-- EAST approach: lane 2=LEFT ONLY, lane 3=STRAIGHT + RIGHT -->
     <connection from="east_near_to_center" to="center_to_west" fromLane="1" toLane="1"/>
-    <connection from="east_near_to_center" to="center_to_north" fromLane="2" toLane="1"/>
-    <connection from="east_near_to_center" to="center_to_west" fromLane="3" toLane="1"/>
-    <connection from="east_near_to_center" to="center_to_south" fromLane="3" toLane="1"/>
+    <connection from="east_near_to_center" to="center_to_north" fromLane="2" toLane="2"/>
+    <connection from="east_near_to_center" to="center_to_west" fromLane="2" toLane="2"/>
+    <connection from="east_near_to_center" to="center_to_south" fromLane="3" toLane="2"/>
     
     <!-- WEST approach: lane 2=LEFT ONLY, lane 3=STRAIGHT + RIGHT -->
     <connection from="west_near_to_center" to="center_to_east" fromLane="1" toLane="1"/>
-    <connection from="west_near_to_center" to="center_to_south" fromLane="2" toLane="1"/>
-    <connection from="west_near_to_center" to="center_to_east" fromLane="3" toLane="1"/>
-    <connection from="west_near_to_center" to="center_to_north" fromLane="3" toLane="1"/>
+    <connection from="west_near_to_center" to="center_to_south" fromLane="2" toLane="2"/>
+    <connection from="west_near_to_center" to="center_to_east" fromLane="2" toLane="2"/>
+    <connection from="west_near_to_center" to="center_to_north" fromLane="3" toLane="2"/>
     
 </connections>
