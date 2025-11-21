@@ -24,24 +24,24 @@
     <route id="east_west" edges="east_far_to_near east_near_to_center center_to_west"/>
     
     
-    <flow id="flow_N_S" type="car" route="north_south" begin="0" end="3600" number="124" departSpeed="max"/>
-    <flow id="flow_N_W" type="car" route="north_west" begin="0" end="3600" number="35" departSpeed="max"/>
-    <flow id="flow_N_E" type="car" route="north_east" begin="0" end="3600" number="19" departSpeed="max"/>
+    <flow id="flow_N_S" type="car" route="north_south" begin="0" end="3600" number="248" departSpeed="max"/>
+    <flow id="flow_N_W" type="car" route="north_west" begin="0" end="3600" number="70" departSpeed="max"/>
+    <flow id="flow_N_E" type="car" route="north_east" begin="0" end="3600" number="38" departSpeed="max"/>
     
-    <flow id="flow_S_N" type="car" route="south_north" begin="0" end="3600" number="223" departSpeed="max"/>
-    <flow id="flow_S_W" type="car" route="south_west" begin="0" end="3600" number="32" departSpeed="max"/>
-    <flow id="flow_S_E" type="car" route="south_east" begin="0" end="3600" number="9" departSpeed="max"/>
+    <flow id="flow_S_N" type="car" route="south_north" begin="0" end="3600" number="446" departSpeed="max"/>
+    <flow id="flow_S_W" type="car" route="south_west" begin="0" end="3600" number="64" departSpeed="max"/>
+    <flow id="flow_S_E" type="car" route="south_east" begin="0" end="3600" number="18" departSpeed="max"/>
     
-    <flow id="flow_W_N" type="car" route="west_north" begin="0" end="3600" number="29" departSpeed="max"/>
-    <flow id="flow_W_S" type="car" route="west_south" begin="0" end="3600" number="21" departSpeed="max"/>
-    <flow id="flow_W_E" type="car" route="west_east" begin="0" end="3600" number="22" departSpeed="max"/>
+    <flow id="flow_W_N" type="car" route="west_north" begin="0" end="3600" number="58" departSpeed="max"/>
+    <flow id="flow_W_S" type="car" route="west_south" begin="0" end="3600" number="42" departSpeed="max"/>
+    <flow id="flow_W_E" type="car" route="west_east" begin="0" end="3600" number="44" departSpeed="max"/>
     
 
-    <flow id="flow_E_N" type="car" route="east_north" begin="0" end="3600" number="4" departSpeed="max"/>
-    <flow id="flow_E_S" type="car" route="east_south" begin="0" end="3600" number="2" departSpeed="max"/>
-    <flow id="flow_E_W" type="car" route="east_west" begin="0" end="3600" number="13" departSpeed="max"/>
+    <flow id="flow_E_N" type="car" route="east_north" begin="0" end="3600" number="8" departSpeed="max"/>
+    <flow id="flow_E_S" type="car" route="east_south" begin="0" end="3600" number="4" departSpeed="max"/>
+    <flow id="flow_E_W" type="car" route="east_west" begin="0" end="3600" number="26" departSpeed="max"/>
     
-    <flow id="bike_N_S" type="bike" route="north_south" begin="0" end="3600" number="10" departSpeed="max"/>
-    <flow id="bike_S_N" type="bike" route="south_north" begin="0" end="3600" number="10" departSpeed="max"/>
+    <!-- <flow id="bike_N_S" type="bike" route="north_south" begin="0" end="3600" number="10" departSpeed="max"/> -->
+    <!-- <flow id="bike_S_N" type="bike" route="south_north" begin="0" end="3600" number="10" departSpeed="max"/> -->
     
 </routes>
