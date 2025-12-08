@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<additional xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/additional_file.xsd">
+
+    <tlLogic id="center" type="static" programID="protective_permitted_paper" offset="0">
+        
+        <phase duration="10" state="rrrGrrrrrrrGrrrrrrrr"/>
+
+        <phase duration="3"  state="rrryrrrrrrryrrrrrrrr"/>
+
+        <phase duration="30" state="GgGgrrrrGgGgrrrrrGrG"/>
+
+        <phase duration="4"  state="yyyyrrrrryyyyrrrrrrr"/>
+
+
+        <phase duration="10" state="rrrrrrrGrrrrrrrGrrrr"/>
+
+        <phase duration="3"  state="rrrrrrryrrrrrrryrrrr"/>
+
+        <phase duration="30" state="rrrrGgGgrrrrGgGgGrGr"/>
+
+        <phase duration="4"  state="rrryyyyyrrryyyyyrrrr"/>
+
+    </tlLogic>
+</additional>

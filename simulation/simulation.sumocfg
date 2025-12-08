@@ -3,9 +3,17 @@
     <input>
         <net-file value="network.net.xml"/>
         <route-files value="routes.rou.xml"/>
+        <additional-files value="traffic_light.add.xml"/>
     </input>
     <time>
         <begin value="0"/>
         <end value="1000"/>
     </time>
+    <processing>
+        <collision.action value="warn"/>
+        <collision.check-junctions value="true"/>
+        <pedestrian.model value="striping"/>
+        <pedestrian.striping.dawdling value="0.2"/>
+        <pedestrian.striping.jamtime value="10"/>
+    </processing>
 </configuration>
