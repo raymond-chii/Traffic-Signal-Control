@@ -1,6 +1,6 @@
 # PPO Traffic Signal Control
 
-Reinforcement Learning approach for adaptive traffic signal control using Proximal Policy Optimization (PPO) with SUMO simulation.
+Reinforcement Learning approach for adaptive traffic signal control using Proximal Policy Optimization (PPO)  for single interaction with SUMO simulation.
 
 ## Overview
 
@@ -11,6 +11,14 @@ This project implements an adaptive traffic signal controller using PPO that lea
 The system uses discrete actions (10%-90% time splits) for protected/permissive signal phases.
 
 ## Visual Summary
+
+### Simulation Environment
+
+![Simulation Environment](simulation.gif)
+
+*Figure: traffic signals in SUMO simulation - adaptively adjusting protected/permissive phase timing based on real-time traffic conditions*
+
+### Results Overview
 
 ![Complete Analysis](plots/complete_analysis.png)
 
