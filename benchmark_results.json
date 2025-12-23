@@ -1,0 +1,90 @@
+{
+  "Random Policy (validation)": {
+    "rewards": -485.5615,
+    "collisions": 0.0,
+    "danger": 387.0,
+    "waiting": 10856.150000000001,
+    "protected_times": 19.499999999999996,
+    "collisions_std": 0.0
+  },
+  "Fixed-10% (4.5s/40.5s)": {
+    "rewards": -483.5105,
+    "collisions": 0.0,
+    "danger": 379.0,
+    "waiting": 11451.05,
+    "protected_times": 4.5,
+    "collisions_std": 0.0
+  },
+  "Fixed-20% (9.0s/36.0s)": {
+    "rewards": -495.4844999999999,
+    "collisions": 0.0,
+    "danger": 379.0,
+    "waiting": 12648.45,
+    "protected_times": 9.0,
+    "collisions_std": 0.0
+  },
+  "Fixed-30% (13.5s/31.5s)": {
+    "rewards": -507.367,
+    "collisions": 0.0,
+    "danger": 402.0,
+    "waiting": 11536.7,
+    "protected_times": 13.5,
+    "collisions_std": 0.0
+  },
+  "Fixed-40% (18.0s/27.0s)": {
+    "rewards": -536.1155,
+    "collisions": 0.0,
+    "danger": 435.0,
+    "waiting": 11111.55,
+    "protected_times": 18.0,
+    "collisions_std": 0.0
+  },
+  "Fixed-50% (22.5s/22.5s)": {
+    "rewards": -497.434,
+    "collisions": 0.0,
+    "danger": 396.0,
+    "waiting": 11143.4,
+    "protected_times": 22.5,
+    "collisions_std": 0.0
+  },
+  "Fixed-60% (27.0s/18.0s)": {
+    "rewards": -476.225,
+    "collisions": 0.0,
+    "danger": 375.0,
+    "waiting": 11122.5,
+    "protected_times": 27.0,
+    "collisions_std": 0.0
+  },
+  "Fixed-70% (31.5s/13.5s)": {
+    "rewards": -492.0245,
+    "collisions": 0.0,
+    "danger": 391.0,
+    "waiting": 11102.45,
+    "protected_times": 31.5,
+    "collisions_std": 0.0
+  },
+  "Fixed-80% (36.0s/9.0s)": {
+    "rewards": -471.3075,
+    "collisions": 0.0,
+    "danger": 370.0,
+    "waiting": 11130.75,
+    "protected_times": 36.0,
+    "collisions_std": 0.0
+  },
+  "Fixed-90% (40.5s/4.5s)": {
+    "rewards": -472.24749999999995,
+    "collisions": 0.0,
+    "danger": 371.0,
+    "waiting": 11124.75,
+    "protected_times": 40.5,
+    "collisions_std": 0.0
+  },
+  "PPO (Adaptive)": {
+    "rewards": -474.617,
+    "collisions": 0.0,
+    "danger": 379.0,
+    "waiting": 10561.7,
+    "protected_times": 25.2,
+    "collisions_std": 0.0
+  }
+}

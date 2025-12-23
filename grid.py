@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import numpy as np
 import traci
 
@@ -70,12 +69,6 @@ class Grid:
         return grid
     
     def get_speed_grid(self):
-        """
-        Returns a grid matrix with average vehicle speeds in each cell.
-        
-        Returns:
-            numpy array of shape (rows, cols) with average speeds (m/s)
-        """
         speed_grid = np.zeros((self.rows, self.cols), dtype=np.float32)
         count_grid = np.zeros((self.rows, self.cols), dtype=np.int32)
         
@@ -100,12 +93,6 @@ class Grid:
         return speed_grid
     
     def get_waiting_grid(self):
-        """
-        Returns a grid matrix with counts of waiting vehicles (speed < 0.1 m/s).
-        
-        Returns:
-            numpy array of shape (rows, cols) with waiting vehicle counts
-        """
         grid = np.zeros((self.rows, self.cols), dtype=np.int32)
         
         vehicle_ids = traci.vehicle.getIDList()
@@ -126,12 +113,6 @@ class Grid:
         return grid
     
     def get_full_observation(self):
-        """
-        Returns a dictionary with all grid observations.
-        
-        Returns:
-            dict with keys: 'vehicles', 'pedestrians', 'speeds', 'waiting'
-        """
         return {
             'vehicles': self.get_vehicle_grid(),
             'pedestrians': self.get_pedestrian_grid(),
@@ -140,16 +121,6 @@ class Grid:
         }
     
     def get_stacked_observation(self):
-        """
-        Returns all observations stacked as a 3D array for neural networks.
-        
-        Returns:
-            numpy array of shape (4, rows, cols) with channels:
-            0: vehicle counts
-            1: pedestrian counts  
-            2: average speeds
-            3: waiting vehicle counts
-        """
         obs = self.get_full_observation()
         return np.stack([
             obs['vehicles'],
@@ -159,7 +130,6 @@ class Grid:
         ], axis=0)
     
     def print_grid(self, grid, title="Grid"):
-        """Pretty print a grid matrix."""
         print(f"\n{title}:")
         print("-" * (self.cols * 4 + 1))
         for row in grid:

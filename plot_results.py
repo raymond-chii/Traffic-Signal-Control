@@ -1,120 +1,282 @@
-#!/usr/bin/env python3
 import json
 import os
+import argparse
 import matplotlib.pyplot as plt
-import numpy as np
 
-def load_training_results(checkpoint_dir="ppo_best_checkpoint"):
-    results = []
+plt.style.use('seaborn-v0_8-darkgrid')
+plt.rcParams.update({
+    'font.size': 11,
+    'axes.labelsize': 12,
+    'axes.titlesize': 13,
+    'xtick.labelsize': 10,
+    'ytick.labelsize': 10,
+    'legend.fontsize': 10,
+    'figure.titlesize': 14,
+    'lines.linewidth': 2,
+    'lines.markersize': 6
+})
 
-    progress_file = os.path.join(checkpoint_dir, "progress.csv")
 
-    if os.path.exists(progress_file):
-        import pandas as pd
-        df = pd.read_csv(progress_file)
-        return df
-
-    return None
-
-def plot_training_curves(results_file="training_results.json"):
-
-    if not os.path.exists(results_file):
-        print(f"Results file {results_file} not found!")
-        print("Please run training with results logging or create the file manually.")
+def plot_training_metrics(json_file="training_results.json", output_dir="plots"):
+    if not os.path.exists(json_file):
+        print(f" Training results file not found: {json_file}")
         return
 
-    with open(results_file, 'r') as f:
+    with open(json_file) as f:
         data = json.load(f)
 
-    iterations = data['iterations']
-    rewards = data['rewards']
-    episode_lengths = data['episode_lengths']
+    os.makedirs(output_dir, exist_ok=True)
 
-    # Create figure with subplots
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
-    fig.suptitle('PPO Training Progress - Traffic Signal Control', fontsize=16, fontweight='bold')
+    iterations = data["iterations"]
 
-    # Plot 1: Reward over iterations
-    ax1.plot(iterations, rewards, 'b-o', linewidth=2, markersize=6, label='Episode Reward')
-    ax1.axhline(y=-440, color='r', linestyle='--', linewidth=2, label='Baseline (Always-Green)')
-    ax1.set_xlabel('Training Iteration', fontsize=12)
-    ax1.set_ylabel('Mean Episode Reward', fontsize=12)
-    ax1.set_title('Learning Curve: Reward vs Iteration', fontsize=14)
+    # Create 2x2 subplot
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+    fig.suptitle("PPO Training Progress: Traffic Signal Control", fontsize=16, fontweight='bold')
+
+    # 1. Reward
+    ax = axes[0, 0]
+    ax.plot(iterations, data["rewards"], 'b-o', label='Episode Reward', alpha=0.8)
+    ax.set_xlabel("Training Iteration")
+    ax.set_ylabel("Average Reward")
+    ax.set_title("Learning Progress (Reward)")
+    ax.grid(True, alpha=0.3)
+    ax.legend()
+
+    # 2. Collisions
+    ax = axes[0, 1]
+    ax.plot(iterations, data["collisions"], 'r-s', label='Collisions', alpha=0.8)
+    ax.set_xlabel("Training Iteration")
+    ax.set_ylabel("Average Collisions per Episode")
+    ax.set_title("Safety: Vehicle Collisions")
+    ax.grid(True, alpha=0.3)
+    ax.legend()
+    ax.axhline(y=0, color='green', linestyle='--', linewidth=1, alpha=0.5, label='Target: 0')
+
+    # 3. Danger Events
+    ax = axes[1, 0]
+    ax.plot(iterations, data["danger"], 'orange', marker='^', label='Near-Miss Events', alpha=0.8)
+    ax.set_xlabel("Training Iteration")
+    ax.set_ylabel("Average Danger Events per Episode")
+    ax.set_title("Safety: Vehicle-Pedestrian Near-Misses")
+    ax.grid(True, alpha=0.3)
+    ax.legend()
+
+    # 4. Waiting Time
+    ax = axes[1, 1]
+    ax.plot(iterations, data["avg_waiting"], 'g-d', label='Avg Waiting Time', alpha=0.8)
+    ax.set_xlabel("Training Iteration")
+    ax.set_ylabel("Average Waiting Time (seconds)")
+    ax.set_title("Efficiency: Vehicle Waiting Time")
+    ax.grid(True, alpha=0.3)
+    ax.legend()
+
+    plt.tight_layout()
+    output_path = os.path.join(output_dir, "training_progress.png")
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    print(f"✓ Saved training plot: {output_path}")
+    plt.close()
+
+
+def plot_benchmark_comparison(json_file="benchmark_results.json", output_dir="plots"):
+    if not os.path.exists(json_file):
+        print(f" Benchmark results file not found: {json_file}")
+        print("   Run benchmark first: python benchmark.py")
+        return
+
+    with open(json_file) as f:
+        data = json.load(f)
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Extract data
+    agents = list(data.keys())
+    metrics = ["collisions", "danger", "waiting", "rewards"]
+    metric_labels = ["Collisions\n(lower is better)",
+                     "Near-Miss Events\n(lower is better)",
+                     "Waiting Time (s)\n(lower is better)",
+                     "Total Reward\n(higher is better)"]
+
+    # Create comparison bar chart
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+    fig.suptitle("Performance Comparison: PPO vs Fixed-Time Control",
+                 fontsize=16, fontweight='bold')
+
+    colors = ['#d62728', '#ff7f0e', '#2ca02c', '#1f77b4']  # Red, Orange, Green, Blue
+
+    for idx, (metric, label) in enumerate(zip(metrics, metric_labels)):
+        ax = axes[idx // 2, idx % 2]
+        values = [data[agent][metric] for agent in agents]
+
+        # Highlight PPO bar
+        bar_colors = ['lightgray'] * (len(agents) - 1) + [colors[idx]]
+        bars = ax.bar(range(len(agents)), values, color=bar_colors, edgecolor='black', linewidth=1.2)
+
+        # Add value labels on bars
+        for bar, val in zip(bars, values):
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width()/2., height,
+                   f'{val:.1f}',
+                   ha='center', va='bottom', fontsize=9, fontweight='bold')
+
+        ax.set_xticks(range(len(agents)))
+        ax.set_xticklabels([a.replace(' ', '\n') for a in agents], fontsize=9)
+        ax.set_ylabel(metric.capitalize())
+        ax.set_title(label)
+        ax.grid(axis='y', alpha=0.3)
+
+    plt.tight_layout()
+    output_path = os.path.join(output_dir, "benchmark_comparison.png")
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    print(f" Saved benchmark plot: {output_path}")
+    plt.close()
+
+    # Create improvement percentage table
+    if "PPO (Adaptive)" in data:
+        print("\n" + "="*70)
+        print("PPO IMPROVEMENT OVER FIXED-TIME BASELINES")
+        print("="*70)
+
+        fixed_baselines = [k for k in agents if k.startswith("Fixed-Time")]
+        ppo_metrics = data["PPO (Adaptive)"]
+
+        for baseline in fixed_baselines:
+            baseline_metrics = data[baseline]
+            print(f"\n{baseline}:")
+
+            for metric in ["collisions", "danger", "waiting"]:
+                baseline_val = baseline_metrics[metric]
+                ppo_val = ppo_metrics[metric]
+                if baseline_val > 0:
+                    improvement = ((baseline_val - ppo_val) / baseline_val) * 100
+                    print(f"  {metric.capitalize():20s}: {improvement:+6.1f}% "
+                          f"({baseline_val:.1f} → {ppo_val:.1f})")
+
+            # Reward is opposite (higher is better)
+            baseline_reward = baseline_metrics["rewards"]
+            ppo_reward = ppo_metrics["rewards"]
+            if abs(baseline_reward) > 0:
+                improvement = ((ppo_reward - baseline_reward) / abs(baseline_reward)) * 100
+                print(f"  {'Reward':20s}: {improvement:+6.1f}% "
+                      f"({baseline_reward:.1f} → {ppo_reward:.1f})")
+
+
+def create_summary_plot(output_dir="plots"):
+    training_file = "training_results.json"
+    benchmark_file = "benchmark_results.json"
+
+    if not (os.path.exists(training_file) and os.path.exists(benchmark_file)):
+        print(" Need both training_results.json and benchmark_results.json")
+        return
+
+    with open(training_file) as f:
+        training_data = json.load(f)
+    with open(benchmark_file) as f:
+        benchmark_data = json.load(f)
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    fig = plt.figure(figsize=(16, 10))
+    gs = fig.add_gridspec(2, 3, hspace=0.3, wspace=0.3)
+
+    fig.suptitle("PPO Traffic Signal Control: Complete Analysis",
+                 fontsize=18, fontweight='bold')
+
+    # Training metrics (top row)
+    iterations = training_data["iterations"]
+
+    # Reward
+    ax1 = fig.add_subplot(gs[0, 0])
+    ax1.plot(iterations, training_data["rewards"], 'b-o', alpha=0.8)
+    ax1.set_title("Training: Reward Progress")
+    ax1.set_xlabel("Iteration")
+    ax1.set_ylabel("Reward")
     ax1.grid(True, alpha=0.3)
-    ax1.legend(fontsize=10)
 
-    # Add improvement annotation
-    improvement = rewards[-1] - rewards[0]
-    ax1.text(0.05, 0.95, f'Improvement: {improvement:+.1f}',
-             transform=ax1.transAxes, fontsize=11,
-             verticalalignment='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
-
-    # Plot 2: Episode length over iterations
-    ax2.plot(iterations, episode_lengths, 'g-s', linewidth=2, markersize=6)
-    ax2.set_xlabel('Training Iteration', fontsize=12)
-    ax2.set_ylabel('Mean Episode Length (decisions)', fontsize=12)
-    ax2.set_title('Episode Length Stability', fontsize=14)
+    # Collisions
+    ax2 = fig.add_subplot(gs[0, 1])
+    ax2.plot(iterations, training_data["collisions"], 'r-s', alpha=0.8)
+    ax2.set_title("Training: Collision Reduction")
+    ax2.set_xlabel("Iteration")
+    ax2.set_ylabel("Collisions")
     ax2.grid(True, alpha=0.3)
 
-    plt.tight_layout()
-    plt.savefig('training_progress.png', dpi=300, bbox_inches='tight')
-    print("✓ Saved: training_progress.png")
-    plt.show()
+    # Waiting Time
+    ax3 = fig.add_subplot(gs[0, 2])
+    ax3.plot(iterations, training_data["avg_waiting"], 'g-d', alpha=0.8)
+    ax3.set_title("Training: Waiting Time Optimization")
+    ax3.set_xlabel("Iteration")
+    ax3.set_ylabel("Waiting Time (s)")
+    ax3.grid(True, alpha=0.3)
 
-def plot_comparison(results_file="training_results.json"):
-    """Create bar chart comparing final performance to baselines"""
+    # Benchmark comparisons (bottom row)
+    agents = list(benchmark_data.keys())
 
-    if not os.path.exists(results_file):
-        print(f"Results file {results_file} not found!")
-        return
+    # Collisions comparison
+    ax4 = fig.add_subplot(gs[1, 0])
+    collisions = [benchmark_data[a]["collisions"] for a in agents]
+    colors = ['lightgray'] * (len(agents) - 1) + ['red']
+    ax4.bar(range(len(agents)), collisions, color=colors, edgecolor='black')
+    ax4.set_xticks(range(len(agents)))
+    ax4.set_xticklabels([a.split()[0] for a in agents], rotation=45, ha='right', fontsize=8)
+    ax4.set_title("Benchmark: Collisions")
+    ax4.set_ylabel("Count")
+    ax4.grid(axis='y', alpha=0.3)
 
-    with open(results_file, 'r') as f:
-        data = json.load(f)
+    # Danger comparison
+    ax5 = fig.add_subplot(gs[1, 1])
+    danger = [benchmark_data[a]["danger"] for a in agents]
+    colors = ['lightgray'] * (len(agents) - 1) + ['orange']
+    ax5.bar(range(len(agents)), danger, color=colors, edgecolor='black')
+    ax5.set_xticks(range(len(agents)))
+    ax5.set_xticklabels([a.split()[0] for a in agents], rotation=45, ha='right', fontsize=8)
+    ax5.set_title("Benchmark: Near-Misses")
+    ax5.set_ylabel("Count")
+    ax5.grid(axis='y', alpha=0.3)
 
-    final_reward = data['rewards'][-1]
+    # Waiting comparison
+    ax6 = fig.add_subplot(gs[1, 2])
+    waiting = [benchmark_data[a]["waiting"] for a in agents]
+    colors = ['lightgray'] * (len(agents) - 1) + ['green']
+    ax6.bar(range(len(agents)), waiting, color=colors, edgecolor='black')
+    ax6.set_xticks(range(len(agents)))
+    ax6.set_xticklabels([a.split()[0] for a in agents], rotation=45, ha='right', fontsize=8)
+    ax6.set_title("Benchmark: Waiting Time")
+    ax6.set_ylabel("Seconds")
+    ax6.grid(axis='y', alpha=0.3)
 
-    # Baseline values (from your testing)
-    methods = ['Always\nN-S', 'Always\nE-W', 'Random', 'Alternate\nEvery 5', 'PPO\n(Trained)']
-    rewards = [-441, -436, -1252, -1179, final_reward]
-    colors = ['lightcoral', 'lightcoral', 'lightgray', 'lightgray', 'lightgreen']
+    output_path = os.path.join(output_dir, "complete_analysis.png")
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    print(f"✓ Saved complete analysis: {output_path}")
+    plt.close()
 
-    fig, ax = plt.subplots(figsize=(10, 6))
-    bars = ax.bar(methods, rewards, color=colors, edgecolor='black', linewidth=1.5)
-
-    # Highlight the best performer
-    best_idx = np.argmax(rewards)
-    bars[best_idx].set_edgecolor('darkgreen')
-    bars[best_idx].set_linewidth(3)
-
-    ax.set_ylabel('Mean Episode Reward', fontsize=13)
-    ax.set_title('Performance Comparison: PPO vs Baseline Policies', fontsize=15, fontweight='bold')
-    ax.axhline(y=0, color='black', linestyle='-', linewidth=0.8)
-    ax.grid(axis='y', alpha=0.3)
-
-    # Add value labels on bars
-    for bar in bars:
-        height = bar.get_height()
-        ax.text(bar.get_x() + bar.get_width()/2., height,
-                f'{height:.0f}',
-                ha='center', va='bottom' if height > 0 else 'top', fontsize=11, fontweight='bold')
-
-    plt.tight_layout()
-    plt.savefig('performance_comparison.png', dpi=300, bbox_inches='tight')
-    print("✓ Saved: performance_comparison.png")
-    plt.show()
 
 if __name__ == "__main__":
-    print("\n" + "="*60)
-    print("Traffic Signal Control - Results Visualization")
-    print("="*60 + "\n")
+    parser = argparse.ArgumentParser(description="Plot PPO traffic control results")
+    parser.add_argument("--training", action="store_true", help="Plot training metrics")
+    parser.add_argument("--benchmark", action="store_true", help="Plot benchmark comparison")
+    parser.add_argument("--summary", action="store_true", help="Create summary plot")
+    parser.add_argument("--all", action="store_true", help="Generate all plots")
+    parser.add_argument("--output-dir", type=str, default="plots", help="Output directory for plots")
 
-    # Check if results file exists
-    if os.path.exists("training_results.json"):
-        plot_training_curves()
-        plot_comparison()
-    else:
-        print("No training_results.json found.")
-        print("\nTo create plots, either:")
-        print("  1. Wait for training to complete and create the results file")
-        print("  2. Create training_results.json manually with format:")
-        print('     {"iterations": [1,2,3...], "rewards": [-500,-450,...], "episode_lengths": [320,325,...]}')
+    args = parser.parse_args()
+
+    # If no specific flag, generate all
+    if not (args.training or args.benchmark or args.summary or args.all):
+        args.all = True
+
+    print("\n" + "="*70)
+    print("GENERATING PUBLICATION-QUALITY PLOTS")
+    print("="*70 + "\n")
+
+    if args.all or args.training:
+        plot_training_metrics(output_dir=args.output_dir)
+
+    if args.all or args.benchmark:
+        plot_benchmark_comparison(output_dir=args.output_dir)
+
+    if args.all or args.summary:
+        create_summary_plot(output_dir=args.output_dir)
+
+    print("\n" + "="*70)
+    print(f"✓ All plots saved to '{args.output_dir}/' directory")
+    print("="*70 + "\n")

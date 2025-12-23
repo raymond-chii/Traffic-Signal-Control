@@ -1,350 +1,388 @@
-#!/usr/bin/env python3
 import os
 import sys
+import shutil
+import warnings
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
 import traci
+import traci.constants as tc
 import ray
 from ray.rllib.algorithms.ppo import PPOConfig, PPO
-from ray.rllib.env.env_context import EnvContext
 from ray.tune.registry import register_env
+from ray.rllib.algorithms.callbacks import DefaultCallbacks
+
+
+# PATH SETUP
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-if SCRIPT_DIR not in sys.path:
-    sys.path.append(SCRIPT_DIR)
+PROJECT_ROOT = SCRIPT_DIR
+SIM_DIR = os.path.join(PROJECT_ROOT, "simulation")
+
+if 'SUMO_HOME' in os.environ:
+    sys.path.append(os.path.join(os.environ['SUMO_HOME'], 'tools'))
 
 try:
     from grid import Grid
 except ImportError:
-    print(f"WARNING: Could not import Grid from {SCRIPT_DIR}. Checking current directory.")
-    try:
-        from grid import Grid
-    except ImportError:
-        raise ImportError("Could not locate grid.py. Ensure it is in the same directory as ppo.py")
+    class Grid:
+        def __init__(self, grid_size, bounds): pass
+        def get_stacked_observation(self): return np.zeros((4, 8, 8))
+
+
+# SUMO BINARY DISCOVERY
+
+def find_sumo_binary(gui=False):
+    if gui:
+        candidates = ["/opt/homebrew/bin/sumo-gui", "/usr/local/bin/sumo-gui", "sumo-gui"]
+    else:
+        candidates = ["/opt/homebrew/bin/sumo", "/usr/local/bin/sumo", "sumo"]
+
+    for c in candidates:
+        if os.path.exists(c) or shutil.which(c):
+            return c
+    return "sumo-gui" if gui else "sumo" # Fallback
+
+
+# CALLBACKS
+
+class TrafficCallbacks(DefaultCallbacks):
+    def on_episode_start(self, *, episode, **kwargs):
+        episode.user_data["collisions"] = 0
+        episode.user_data["danger"] = 0
+        episode.user_data["waiting"] = 0
+
+    def on_episode_step(self, *, episode, base_env, **kwargs):
+        info = episode.last_info_for()
+        if info:
+            episode.user_data["collisions"] += info.get("step_collisions", 0)
+            episode.user_data["danger"] += info.get("danger_events", 0)
+            episode.user_data["waiting"] += info.get("waiting", 0)
+
+    def on_episode_end(self, *, episode, **kwargs):
+        episode.custom_metrics["total_collisions"] = episode.user_data["collisions"]
+        episode.custom_metrics["total_danger"] = episode.user_data["danger"]
+        episode.custom_metrics["avg_waiting"] = episode.user_data["waiting"] / max(1, episode.length)
+
+
+# ENVIRONMENT
 
 class TrafficEnv(gym.Env):
-    
-    def __init__(self, config: EnvContext):
+    metadata = {"render_modes": []}
+
+    def __init__(self, config):
         super().__init__()
-        
         self.gui = config.get("gui", False)
-        self.max_steps = config.get("max_steps", 7500)
-        self.action_duration = config.get("action_duration", 15)
-        self.yellow_duration = 3
-        self.protected_duration = 10 
-        
-        self.grid_size = config.get("grid_size", (8, 8))
-        self.bounds = config.get("bounds", (120, 120, 280, 280))
-        
+        self.max_steps = config.get("max_steps", 1000)
+        self.net_file = config["net_file"]
+        self.route_file = config["route_file"]
+        self.add_file = config["add_file"]
 
-        self.net_file = config.get("net_file")
-        self.route_file = config.get("route_file")
-        self.add_file = config.get("add_file")
-        
-        if not os.path.exists(self.net_file):
-            raise FileNotFoundError(f"Worker could not find network file at: {self.net_file}")
+        self.grid = Grid(grid_size=(8, 8), bounds=(120, 120, 280, 280))
+        self.total_green_time = 45.0
 
-        self.grid = Grid(grid_size=self.grid_size, bounds=self.bounds)
-        self.action_space = spaces.Discrete(2)
-        
-        rows, cols = self.grid_size
-        input_dim = 4 * rows * cols
-        
-        self.observation_space = spaces.Box(
-            low=0, high=100, shape=(input_dim,), dtype=np.float32
-        )
-        
-        self.sumo_running = False
+        # Action: Discrete actions representing 10%, 20%, ..., 90% split
+        self.action_space = spaces.Discrete(9)  # 9 actions: 10% to 90%
+        # Observation: Grid data
+        self.observation_space = spaces.Box(0.0, 100.0, shape=(4 * 8 * 8,), dtype=np.float32)
+
+        self.worker_id = f"sumo_{os.getpid()}"
         self.current_step = 0
-        self.total_collisions = 0
-        self.last_action = 1 
-        
+        self.current_direction = 1
+        self.sumo_running = False
+
     def _start_sumo(self):
-        sumo_binary = "sumo-gui" if self.gui else "sumo"
+        sumo_bin = find_sumo_binary(self.gui)
+        # Port 0 lets TRACI find a free port automatically
         sumo_cmd = [
-            sumo_binary,
+            sumo_bin,
             "-n", self.net_file,
             "-r", self.route_file,
             "-a", self.add_file,
             "--no-warnings", "true",
             "--no-step-log", "true",
             "--time-to-teleport", "-1",
-            "--collision.action", "warn",
-            "--start", "true"
+            "--step-length", "0.5",
+            "--collision.action", "remove",
+            "--collision.check-junctions", "true",
         ]
-        traci.start(sumo_cmd)
-        self.sumo_running = True
-        
+
         try:
-            # Force phase logic
-            traci.trafficlight.setProgram("center", "protective_permitted_paper")
-            traci.trafficlight.setPhase("center", 2)
-        except:
+            traci.start(sumo_cmd, label=self.worker_id)
+            traci.switch(self.worker_id)
+            self.sumo_running = True
+            self._setup_subscriptions()
+        except Exception as e:
+            # Only raise if it's a real startup error, not a label collision
+            if "socket" in str(e) or "connection" in str(e).lower():
+                raise RuntimeError(f"SUMO failed to start: {e}")
+
+    def _setup_subscriptions(self):
+        traci.trafficlight.setProgram("center", "protective_permitted_paper")
+        traci.trafficlight.setPhase("center", 2)
+
+        traci.junction.subscribeContext(
+            "center", tc.CMD_GET_VEHICLE_VARIABLE, 200.0,
+            [tc.VAR_POSITION, tc.VAR_SPEED]
+        )
+        try:
+            traci.poi.add("center_anchor", 200.0, 200.0, (255, 0, 0, 0))
+            traci.poi.subscribeContext(
+                "center_anchor", tc.CMD_GET_PERSON_VARIABLE, 200.0, [tc.VAR_POSITION]
+            )
+        except Exception:
             pass
 
     def _get_observation(self):
         obs = self.grid.get_stacked_observation()
-        obs[2] = obs[2] / 14.0
+        obs[2] /= 14.0
         return obs.flatten().astype(np.float32)
 
     def _get_metrics(self):
         collisions = 0
+        danger = 0
         waiting = 0
-        ped_waiting = 0
-        
-        try:
-            # 1. Collision Check (Distance based)
-            veh_ids = traci.vehicle.getIDList()
-            ped_ids = traci.person.getIDList()
-            
-            if len(ped_ids) > 0 and len(veh_ids) > 0:
-                for ped in ped_ids:
-                    try:
-                        p_pos = np.array(traci.person.getPosition(ped))
-                        for veh in veh_ids:
-                            v_pos = np.array(traci.vehicle.getPosition(veh))
-                            if np.linalg.norm(p_pos - v_pos) < 2.0:
-                                if traci.vehicle.getSpeed(veh) > 0.1:
-                                    collisions += 1
-                    except:
-                        pass
 
-            # 2. Waiting Time
-            for edge in traci.edge.getIDList():
-                waiting += traci.edge.getWaitingTime(edge)
+        try:
+            # Use len(getCollisions())
+            collisions = len(traci.simulation.getCollisions())
+
+            vehs = traci.junction.getContextSubscriptionResults("center") or {}
+            peds = traci.poi.getContextSubscriptionResults("center_anchor") or {}
+
+            if vehs and peds:
+                v_pos = np.array([v[tc.VAR_POSITION] for v in vehs.values()])
+                v_spd = np.array([v[tc.VAR_SPEED] for v in vehs.values()])
+                p_pos = np.array([p[tc.VAR_POSITION] for p in peds.values()])
                 
-            # 3. Pedestrian Waiting
-            for ped in ped_ids:
-                try:
-                    if traci.person.getSpeed(ped) < 0.1:
-                        ped_waiting += 1
-                except:
-                    pass
-        except:
+                moving = v_spd > 1.0
+                if np.any(moving):
+                    # Broadcasting distance check
+                    dists = np.linalg.norm(p_pos[:, None, :] - v_pos[moving][None, :, :], axis=2)
+                    danger = int(np.sum(dists < 5.0))
+
+            for e in traci.edge.getIDList():
+                waiting += traci.edge.getWaitingTime(e)
+
+        except Exception:
             pass
-            
-        return collisions, waiting, ped_waiting
+
+        return collisions, danger, waiting
 
     def reset(self, *, seed=None, options=None):
         super().reset(seed=seed)
-        if self.sumo_running:
+
+        if not self.sumo_running:
+            self._start_sumo()
+        else:
             try:
-                traci.close()
-            except:
-                pass
-        self._start_sumo()
+                traci.switch(self.worker_id)
+                traci.load([
+                    "-n", self.net_file,
+                    "-r", self.route_file,
+                    "-a", self.add_file,
+                    "--no-warnings", "true",
+                    "--no-step-log", "true",
+                    "--time-to-teleport", "-1",
+                    "--step-length", "0.5",
+                    "--collision.action", "remove",
+                    "--collision.check-junctions", "true"
+                ])
+                self._setup_subscriptions()
+            except Exception:
+                try: traci.close()
+                except: pass
+                self._start_sumo()
+
         self.current_step = 0
-        self.total_collisions = 0
-        self.last_action = 1 
+        self.current_direction = 1
         return self._get_observation(), {}
 
     def step(self, action):
+        traci.switch(self.worker_id)
+
+        # Map discrete action (0-8) to percentage (10%-90%)
+        percentage = (action + 1) * 10  # 0→10%, 1→20%, ..., 8→90%
+        protected = int(round(self.total_green_time * percentage / 100.0))
+        permissive = int(round(max(5, self.total_green_time - protected)))
+
+        if self.current_direction == 1:
+            cycle = [(3, 3), (4, protected), (5, 3), (6, permissive)]
+        else:
+            cycle = [(7, 3), (0, protected), (1, 3), (2, permissive)]
+
         step_collisions = 0
+        step_danger = 0
         step_waiting = 0
-        step_ped_waiting = 0
-        
-        # --- PHASE SWITCHING ---
-        if action != self.last_action:
-            transitions = []
-            target_phase = 0
-            
-            if self.last_action == 1: 
-                transitions = [(3, self.yellow_duration), (4, self.protected_duration), (5, self.yellow_duration)]
-                target_phase = 6
-            else: 
-                transitions = [(7, self.yellow_duration), (0, self.protected_duration), (1, self.yellow_duration)]
-                target_phase = 2
 
-            for phase_idx, duration in transitions:
-                traci.trafficlight.setPhase("center", phase_idx)
-                for _ in range(duration):
-                    traci.simulationStep()
-                    self.current_step += 1
-                    c, w, pw = self._get_metrics()
-                    step_collisions += c
-                    step_waiting += w
-                    step_ped_waiting += pw
-            
-            traci.trafficlight.setPhase("center", target_phase)
-            self.last_action = action
+        for phase, dur in cycle:
+            traci.trafficlight.setPhase("center", phase)
+            # dur is seconds, step is 0.5s -> dur*2 steps
+            for _ in range(dur * 2):
+                if self.current_step >= self.max_steps: break
+                traci.simulationStep()
+                self.current_step += 1
+                c, d, w = self._get_metrics()
+                step_collisions += c
+                step_danger += d
+                step_waiting += w
 
-        # --- EXECUTE ACTION ---
-        for _ in range(self.action_duration):
-            traci.simulationStep()
-            self.current_step += 1
-            c, w, pw = self._get_metrics()
-            step_collisions += c
-            step_waiting += w
-            step_ped_waiting += pw
-            if self.current_step >= self.max_steps:
-                break
-        
-        # Penalties
-        w_collision = 50.0
-        w_car_wait = 0.01
-        w_ped_wait = 0.05
-        
-        raw_penalty = (step_collisions * w_collision) + \
-                      (step_waiting * w_car_wait) + \
-                      (step_ped_waiting * w_ped_wait)
-        
-        reward = -raw_penalty * 0.1
-        self.total_collisions += step_collisions
-        
-        obs = self._get_observation()
+        self.current_direction ^= 1
+
+        reward = -10.0 * step_collisions - 1.0 * step_danger - 0.001 * step_waiting + 1.0
         terminated = self.current_step >= self.max_steps
-        truncated = False
-        
+
         info = {
-            "collisions": self.total_collisions,
-            "waiting": step_waiting
+            "step_collisions": step_collisions,
+            "danger_events": step_danger,
+            "waiting": step_waiting,
+            "protected_time": protected,
         }
-        
-        return obs, reward, terminated, truncated, info
+
+        return self._get_observation(), reward, terminated, False, info
 
     def close(self):
         if self.sumo_running:
-            traci.close()
+            try:
+                traci.switch(self.worker_id)
+                traci.close()
+            except Exception:
+                pass
             self.sumo_running = False
 
-# --- HELPER TO RESOLVE PATHS ONCE ---
-def get_sim_config():
-    # Resolve paths relative to THIS script (which we know is correct)
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    sim_dir = os.path.join(base_dir, "simulation")
-    
-    # Define absolute paths
-    config = {
-        "net_file": os.path.join(sim_dir, "network.net.xml"),
-        "route_file": os.path.join(sim_dir, "routes.rou.xml"),
-        "add_file": os.path.join(sim_dir, "traffic_light.add.xml"),
-        "gui": False,
-        "action_duration": 15
-    }
-    
-    # Validation before we even send to workers
-    if not os.path.exists(config["net_file"]):
-        print(f"ERROR: Network file not found at: {config['net_file']}")
-        print(f"Current Directory: {os.getcwd()}")
-        print(f"Script Directory: {base_dir}")
-        sys.exit(1)
-        
-    return config
+
+# MAIN EXECUTION
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", type=str, default="train", choices=["train", "test"])
-    parser.add_argument("--checkpoint", type=str, default=None)
+    parser.add_argument("--mode", choices=["train", "test"], default="train")
+    parser.add_argument("--checkpoint", type=str)
     args = parser.parse_args()
 
-    ray.init(
-        ignore_reinit_error=True,
-        logging_level="ERROR",
-        object_store_memory=1e9,  # Limit object store to 1GB
-        _temp_dir="/tmp/ray_traffic"  # Use custom temp dir
-    )
-    register_env("TrafficEnv", lambda config: TrafficEnv(config))
+    warnings.filterwarnings("ignore")
+    # Disable dashboard to prevent RPC errors on Mac
+    ray.init(ignore_reinit_error=True, include_dashboard=False, logging_level="ERROR")
 
-    # Calculate paths here in main process
-    env_config_dict = get_sim_config()
+    sim_config = {
+        "net_file": os.path.join(SIM_DIR, "network.net.xml"),
+        "route_file": os.path.join(SIM_DIR, "routes.rou.xml"),
+        "add_file": os.path.join(SIM_DIR, "traffic_light.add.xml"),
+        "max_steps": 1000,
+    }
+
+    register_env("TrafficEnv", lambda cfg: TrafficEnv(cfg))
 
     config = (
         PPOConfig()
-        .api_stack(
-            enable_rl_module_and_learner=False,
-            enable_env_runner_and_connector_v2=False
-        )
-        .environment(
-            env="TrafficEnv",
-            env_config=env_config_dict # Pass specific paths to workers
-        )
+        .api_stack(enable_rl_module_and_learner=False, enable_env_runner_and_connector_v2=False)
+        .environment("TrafficEnv", env_config=sim_config)
         .framework("torch")
+        .callbacks(TrafficCallbacks)
         .training(
-            train_batch_size=1000,  # Reduced for CPU
-            lr=5e-5,
-            gamma=0.99,
-            num_sgd_iter=10,  # Fewer SGD iterations for speed
-            model={
-                "fcnet_hiddens": [256, 256, 128],  # Keep original network size for performance
-                "fcnet_activation": "relu"
-            }
+            train_batch_size=1000, 
+            lr=1e-4, 
+            gamma=0.99
         )
         .env_runners(
-            num_env_runners=1,
-            rollout_fragment_length=50,  # Restore original rollout length
-            sample_timeout_s=300.0
+            num_env_runners=1, 
+            rollout_fragment_length=1000, 
+            batch_mode="complete_episodes",
+            sample_timeout_s=600.0
         )
-        # CPU only - no GPU
+        .resources(num_gpus=0, num_cpus_per_worker=1)
     )
 
     if args.mode == "train":
-        algo = config.build()
-        print("\n" + "=" * 60)
-        print("Starting PPO Training - CPU Optimized")
-        print("=" * 60 + "\n")
-
-        best_reward = float('-inf')
-        training_results = {"iterations": [], "rewards": [], "episode_lengths": []}
-
-        for i in range(30):  # Reduced from 50 for faster CPU training
-            result = algo.train()
-
-            # Handle different result key formats in Ray 2.9.0
-            reward = result.get('env_runners', {}).get('episode_reward_mean') or \
-                     result.get('episode_reward_mean', 0)
-            ep_len = result.get('env_runners', {}).get('episode_len_mean') or \
-                     result.get('episode_len_mean', 0)
-
-            training_results["iterations"].append(i + 1)
-            training_results["rewards"].append(float(reward))
-            training_results["episode_lengths"].append(float(ep_len))
-
-            print(f"Iter {i+1:2d}/30 | Reward: {reward:8.2f} | Ep Length: {ep_len:6.1f}")
-
-            if reward > best_reward:
-                best_reward = reward
-                checkpoint = algo.save("./ppo_best_checkpoint")
-                print(f"         → New Best! Saved.")
-
         import json
+
+        print("\n=== Starting Training ===")
+        print(f"{'Iter':>4} | {'Reward':>8} | {'Collisions':>10} | {'Danger':>8} | {'Avg Wait':>10} | {'Episodes':>8}")
+        print("-" * 75)
+
+        # Track metrics for plotting
+        training_data = {
+            "iterations": [],
+            "rewards": [],
+            "collisions": [],
+            "danger": [],
+            "avg_waiting": [],
+            "episodes": []
+        }
+
+        algo = config.build()
+        best_reward = float('-inf')
+
+        for i in range(50):
+            res = algo.train()
+
+            # --- SAFE DATA ACCESS ---
+            # Checks multiple locations for metrics to avoid crashes
+            rew = res.get('episode_reward_mean')
+            if rew is None:
+                rew = res.get('env_runners', {}).get('episode_reward_mean')
+
+            # Extract custom metrics
+            custom_metrics = res.get('custom_metrics', {})
+            if not custom_metrics:
+                custom_metrics = res.get('env_runners', {}).get('custom_metrics', {})
+
+            collisions = custom_metrics.get('total_collisions_mean', 0)
+            danger = custom_metrics.get('total_danger_mean', 0)
+            avg_wait = custom_metrics.get('avg_waiting_mean', 0)
+
+            # Get episode count
+            episodes = res.get('episodes_this_iter', res.get('env_runners', {}).get('num_episodes', 0))
+
+            if rew is not None:
+                print(f"{i+1:4d} | {rew:8.2f} | {collisions:10.1f} | {danger:8.1f} | {avg_wait:10.2f} | {episodes:8d}")
+
+                # Save training data
+                training_data["iterations"].append(i + 1)
+                training_data["rewards"].append(float(rew))
+                training_data["collisions"].append(float(collisions))
+                training_data["danger"].append(float(danger))
+                training_data["avg_waiting"].append(float(avg_wait))
+                training_data["episodes"].append(int(episodes))
+
+                # Save best model
+                if rew > best_reward:
+                    best_reward = rew
+                    algo.save("./ppo_best_checkpoint")
+                    print(f"     → New best model saved! (reward: {rew:.2f})")
+            else:
+                print(f"{i+1:4d} | {'--':>8} | {'--':>10} | {'--':>8} | {'--':>10} | {'--':>8}")
+
+            if (i+1) % 10 == 0:
+                algo.save("./ppo_checkpoints")
+                print("-" * 75)
+
+        # Save training results
         with open("training_results.json", "w") as f:
-            json.dump(training_results, f, indent=2)
-        print(f"\n✓ Training complete! Results saved.")
-        print(f"✓ Best reward: {best_reward:.2f}")
+            json.dump(training_data, f, indent=2)
+        print("\n Training results saved to training_results.json")
 
         algo.stop()
-
-    elif args.mode == "test":
+        
+    else:
         if not args.checkpoint:
-            print("Error: Provide --checkpoint")
+            print("Error: --checkpoint required for test mode.")
             sys.exit(1)
-
-        # algo = PPO.from_checkpoint(args.checkpoint)
-        chkpt_path = os.path.abspath(args.checkpoint)
-        algo = PPO.from_checkpoint(chkpt_path)
         
-        # Ensure test config also uses the robust paths
-        test_config = get_sim_config()
-        test_config["gui"] = True # Enable GUI for test
-        
-        env = TrafficEnv(test_config)
+        algo = PPO.from_checkpoint(args.checkpoint)
+        sim_config["gui"] = True
+        env = TrafficEnv(sim_config)
         obs, _ = env.reset()
         done = False
-        total_reward = 0
-        step_count = 0
-
+        
         while not done:
-            action = algo.compute_single_action(obs, explore=False)
-            obs, reward, terminated, truncated, info = env.step(action)
-            done = terminated or truncated
-            total_reward += reward
-            step_count += 1
-            phase = "N-S" if action == 1 else "E-W"
-            print(f"Step {step_count:3d} | Phase: {phase} | Col: {info['collisions']} | Rew: {reward:.2f}")
-
+            act = algo.compute_single_action(obs, explore=False)
+            obs, r, term, trunc, info = env.step(act)
+            done = term or trunc
+            percentage = (act + 1) * 10
+            print(f"Action: {act} ({percentage}%) | Info: {info}")
+        
         env.close()
-        algo.stop()
 
     ray.shutdown()
