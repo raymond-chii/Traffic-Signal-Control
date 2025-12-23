@@ -56,8 +56,6 @@ Train the PPO agent (50 iterations):
 ```bash
 python ppo.py --mode train
 ```
-
-This will:
 - Train for 50 iterations with live progress tracking
 - Save best model to `./ppo_best_checkpoint/`
 - Save periodic checkpoints to `./ppo_checkpoints/`
@@ -100,7 +98,7 @@ Results saved to `benchmark_results.json`
 
 ### 4. Generate Plots
 
-Create publication-quality figures:
+Create figures:
 
 ```bash
 # Generate plots
@@ -133,7 +131,7 @@ Total green time: 45 seconds per cycle
 
 ## Observation Space
 
-Grid-based representation (8×8 cells) containing:
+Grid-based representation in [grid.py](grid.py) (8×8 cells) containing:
 - Vehicle positions and speeds
 - Pedestrian positions
 - Traffic density in each cell
@@ -223,6 +221,21 @@ lr = 1e-4                     # Learning rate
 gamma = 0.99                  # Discount factor
 num_env_runners = 1           # Parallel environments
 total_green_time = 45         # Seconds per light cycle
+```
+
+Neural network architecture (RLlib defaults):
+```python
+# Policy Network
+input_layer = 256             # Grid observation (4×8×8 flattened)
+hidden_layer_1 = 256          # Fully connected + ReLU
+hidden_layer_2 = 256          # Fully connected + ReLU
+output_layer = 9              # Discrete action probabilities
+
+# Value Network (separate from policy)
+input_layer = 256             # Grid observation (4×8×8 flattened)
+hidden_layer_1 = 256          # Fully connected + ReLU
+hidden_layer_2 = 256          # Fully connected + ReLU
+output_layer = 1              # State value estimate
 ```
 
 Traffic scenario ([simulation/routes.rou.xml](simulation/routes.rou.xml)):
